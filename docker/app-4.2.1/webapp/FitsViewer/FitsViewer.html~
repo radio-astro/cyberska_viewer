@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>CyberSKA FitsViewer</title>
+
+    <!--This base tag is needed for resolving relative links-->
+    <base href="/FitsViewer/"/>
+
+    <script>
+        window.origconsole = window.console;
+    </script>
+
+    <!--main CSS-->
+    <link rel="stylesheet" href="css/main.css"/>
+
+    <!--jquery-->
+<!--
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.2/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.2/themes/smoothness/jquery-ui.css"/>
+-->
+
+    <!-- Include PureWeb HTML5 STK minified javascript distribution -->
+    <!--Note: this currently includes closure-->
+    <script>
+        var state1 = {};
+        (function(){
+            for( var x in window) {
+                state1[x] = true;
+            }
+        })();
+    </script>
+    <script src="/lib/pureweb/pureweb.min.js"></script>
+    <script>
+        (function(){
+            console.group("Pureweb polluted global space:");
+            for( var x in window) {
+                if( state1[x] != true)
+                    console.log(x);
+            }
+            console.groupEnd("Pureweb polluted global space:");
+        })();
+    </script>
+
+
+    <script src="sources/Console.js"></script>
+    <script src="sources/Hub.js"></script>
+
+    <script src="sources/GlobalStatePW.js"></script>
+
+    <!--main app-->
+    <script src="sources/main.js"></script>
+
+<!--
+    Note: qooxdoo runs automatically at some point, and the way it will notify us that it's ready is
+          via a Hub.emit (fv.hub). That's why it should go after main.js...
+-->
+
+    <!--qooxdoo application - source version -->
+    <script type="text/javascript" src="qapp/source/script/qapp.js"></script>
+
+    <!--qooxdoo application - build version -->
+    <!--<script type="text/javascript" src="qapp/build/script/qapp.js"></script>-->
+
+    <script>
+        console.log("Last script on the page executing.");
+    </script>
+
+</head>
+<body>
+<!--
+<div id="pwDiagnosticsPanel"></div>
+-->
+<div style="padding: 5% 0; height: 100%">
+  <div style="padding: 10% 0; text-align: center; ">Loading...</div>
+</div>
+
+</body>
+</html>

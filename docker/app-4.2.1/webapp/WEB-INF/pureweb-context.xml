@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:s="http://www.springframework.org/schema/security"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+                           http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+                           http://www.springframework.org/schema/security
+                           http://www.springframework.org/schema/security/spring-security-3.2.xsd
+                           http://www.springframework.org/schema/aop
+                           http://www.springframework.org/schema/aop/spring-aop-3.2.xsd">
+    <bean  class="org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor"/>
+    <bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+        <property name="ignoreUnresolvablePlaceholders" value="true"/> 
+    </bean>   
+
+    <bean class="org.springframework.web.context.support.ServletContextPropertyPlaceholderConfigurer">
+        <property name="systemPropertiesModeName" value="SYSTEM_PROPERTIES_MODE_OVERRIDE"/>
+        <property name="searchContextAttributes" value="true"/>
+        <property name="contextOverride" value="true"/>
+        <property name="ignoreResourceNotFound" value="true"/>
+    </bean>
+
+    <bean id="authenticationFailureHandler" class="pureweb.servlet.DelayedAuthenticationFailureHandler">
+        <property name="defaultFailureUrl" value="/pureweb/server/login.jsp?error=true"/>
+        <property name="authenticationFailureDelay" value="2"/>
+    </bean>
+ 	 
+    <bean id="tenantContextManager" class="pureweb.servlet.TenantContextManager"/>
+    
+ 	<s:user-service id="userDetailsService" properties="WEB-INF/user-service.properties"/>
+ 
+ 	<bean id="defaultAuthenticationProvider" class="org.springframework.security.authentication.dao.DaoAuthenticationProvider">
+ 		<property name="passwordEncoder" ref="sha1Base64PasswordEncoder"/>
+ 		<property name="userDetailsService" ref="userDetailsService"/> 
+ 	</bean>
+ 	
+ 	<bean id="authenticationEventPublisher" class="org.springframework.security.authentication.DefaultAuthenticationEventPublisher"/>
+ 	
+ 	<bean id="authenticationManagerFactory" class="pureweb.servlet.AuthenticationManagerFactory">
+ 		<property name="tenantContextManager" ref="tenantContextManager"/>
+		<property name="eraseCredentialsAfterAuthentication" value="false"/>
+		<property name="authenticationEventPublisher" ref="authenticationEventPublisher"/>
+		<property name="defaultProviders">
+			<list>
+				<ref local="defaultAuthenticationProvider"/>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="authenticationManager" 
+          factory-bean="authenticationManagerFactory" 
+          factory-method="createAuthenticationManager"
+          scope="session" >
+        <aop:scoped-proxy/>
+    </bean>
+    
+    <s:http pattern="/js/**" security="none" />
+    <s:http pattern="/lib/**" security="none" />
+    <s:http pattern="/images/**" security="none" />
+    <s:http pattern="/HTML5/**" security="none" />
+
+    <s:http auto-config="true" realm="PureWeb" create-session="always" use-expressions="true" 
+            authentication-manager-ref="authenticationManager">
+        
+        <!-- do not copy session attributes on authentication (in particular Client instances) -->
+        <s:session-management session-fixation-protection="newSession"/>
+
+        <!-- form-based authentication -->
+        <s:form-login login-processing-url="/login"
+                      login-page="/pureweb/server/login.jsp"
+                      authentication-failure-handler-ref="authenticationFailureHandler"
+                      default-target-url="/pureweb/server/home"
+                      always-use-default-target="false"/>
+        <s:logout logout-url="/logout" logout-success-url="/pureweb/server/login.jsp?logout=true"/>
+
+        <!-- basic authentication -->
+        <!--
+        <s:http-basic/>
+        <s:logout logout-url="/logout"/>
+        -->
+
+        <!-- Allow anonymous OPTIONS requests -->
+        <s:intercept-url pattern="/pureweb/app" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER','ROLE_PUREWEB_COLLABORATOR')" method="OPTIONS"/>
+        <s:intercept-url pattern="/pureweb/app/**" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER','ROLE_PUREWEB_COLLABORATOR')" method="OPTIONS"/>
+
+        <!-- pureweb applications -->
+        <s:intercept-url pattern="/pureweb/app" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER')"/>
+        <s:intercept-url pattern="/pureweb/ws/**" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER', 'ROLE_PUREWEB_COLLABORATOR')"/>
+        <s:intercept-url pattern="/pureweb/app/**" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER', 'ROLE_PUREWEB_COLLABORATOR')"/>
+        <s:intercept-url pattern="/pureweb/view" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER')"/>
+
+        <!-- pureweb collaboration -->
+	<!--
+        <s:intercept-url pattern="/pureweb/share" access="hasAnyRole('ROLE_PUREWEB_USER', 'ROLE_PUREWEB_COLLABORATOR')"/>
+        <s:intercept-url pattern="/pureweb/share/[a-f,0-9]{8}-[a-f,0-9]{4}-[a-f,0-9]{4}-[a-f,0-9]{4}-[a-f,0-9]{12}" access="hasAnyRole('ROLE_PUREWEB_USER', 'ROLE_PUREWEB_COLLABORATOR')" method="DELETE"/>
+	-->
+        <s:intercept-url pattern="/pureweb/share" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER', 'ROLE_PUREWEB_COLLABORATOR')"/>
+        <s:intercept-url pattern="/pureweb/share/[a-f,0-9]{8}-[a-f,0-9]{4}-[a-f,0-9]{4}-[a-f,0-9]{4}-[a-f,0-9]{12}" access="hasAnyRole('ROLE_ANONYMOUS', 'ROLE_PUREWEB_USER', 'ROLE_PUREWEB_COLLABORATOR')" method="DELETE"/>
+
+        <!-- pureweb server info -->
+        <s:intercept-url pattern="/pureweb/server/about" access="hasAnyRole('ROLE_PUREWEB_SERVER_ADMIN', 'ROLE_PUREWEB_USER')"/>
+
+        <!-- admin access to these resources may be restricted to specific client ip addresses -->
+        <!--
+        <s:intercept-url pattern="/pureweb/config/**" access="hasIpAddress('127.0.0.1/32')"/>
+        <s:intercept-url pattern="/pureweb/cluster/**" access="hasIpAddress('127.0.0.1/32')"/>
+
+        <s:intercept-url pattern="/pureweb/server/logs/**" access="hasIpAddress('127.0.0.1/32')"/>
+        <s:intercept-url pattern="/pureweb/server/status" access="hasIpAddress('127.0.0.1/32')"/>
+        <s:intercept-url pattern="/pureweb/server/cluster" access="hasIpAddress('127.0.0.1/32')"/>
+        <s:intercept-url pattern="/pureweb/server/grid" access="hasIpAddress('127.0.0.1/32')"/>
+        -->
+        
+       <!-- URL username password feature -->
+       <s:custom-filter ref="requestParameterAuthenticationFilter" after="BASIC_AUTH_FILTER"/>
+       
+       <!-- Multitenant identification -->
+       <s:custom-filter ref="tenantSecurityContextFilter" after="CONCURRENT_SESSION_FILTER"/>
+    </s:http>
+
+    <bean id="sha1Base64PasswordEncoder" class="org.springframework.security.authentication.encoding.ShaPasswordEncoder">
+        <property name="encodeHashAsBase64" value="true"/>
+    </bean>
+
+    <bean id="authenticationListener" class="pureweb.plugins.AuthenticationListener"/>
+
+    <bean id="usernamePasswordCredentialsSource" class="pureweb.servlet.UsernamePasswordCredentialsSource">
+        <property name="usernameParameter" value="username"/>
+        <property name="passwordParameter" value="password"/>
+    </bean>
+
+    <bean id="requestParameterAuthenticationFilter" class="pureweb.servlet.RequestParameterAuthenticationFilter" autowire="byType">
+        <property name="credentialsSource" ref="usernamePasswordCredentialsSource"/>
+        <property name="redirectRequests" value="true"/>
+    </bean>
+
+	<bean id="tenantSecurityContextFilter" class="pureweb.servlet.TenantSecurityContextFilter"/>
+
+	<import resource="classpath*:META-INF/pureweb-context.xml"/>
+	
+</beans>

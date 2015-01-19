@@ -1,0 +1,336 @@
+<?xml version="1.0" ?>
+
+<web-app xmlns="http://java.sun.com/xml/ns/j2ee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee
+                             http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd"
+         version="2.4">
+
+    <display-name>PureWeb Server</display-name>
+
+    <session-config>
+        <!-- time out the web session after 10 minutes of inactivity
+             NOTE: This setting must be larger than the LogoutTimer
+             set in studybrowser.xml 
+        -->
+        <session-timeout>11</session-timeout>
+    </session-config>
+
+    <context-param>
+        <param-name>pureweb.configuration</param-name>
+        <param-value>${catalina.home}/../conf</param-value>
+    </context-param>
+
+    <context-param>
+        <!-- root spring web application context -->
+        <param-name>contextConfigLocation</param-name>
+        <param-value>
+            /WEB-INF/pureweb-context.xml
+        </param-value>
+    </context-param>
+
+<!--
+    <filter>
+        <description>
+             Filter to bypass the login form by adding a Basic Auth header. This is useful
+             when other preceeding filters have established authentication by other means.
+             For general purpose use, a new user should be created with the PUREWEB_USER_ROLE
+             to avoid bypassing authentication for administrative functions. Once the user
+             has been added, fill in the appropriate username/password parameter values, and
+             uncomment this filter element, along with the associated filter-mapping below.
+        </description>
+        <filter-name>LoginBypassFilter</filter-name>
+        <filter-class>pureweb.servlet.LoginBypassFilter</filter-class>
+        <init-param>
+            <param-name>username</param-name>
+            <param-value>admin</param-value>
+        </init-param>
+        <init-param>
+            <param-name>password</param-name>
+            <param-value>admin</param-value>
+        </init-param>
+    </filter>
+ -->
+
+    <filter>
+        <filter-name>CharsetFilter</filter-name>
+        <filter-class>pureweb.servlet.CharsetFilter</filter-class>
+        <init-param>
+            <param-name>requestEncoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
+    </filter>
+
+    <filter>
+        <filter-name>HeaderOverrideHttpMethodFilter</filter-name>
+        <filter-class>pureweb.servlet.HeaderOverrideHttpMethodFilter</filter-class>
+    </filter>
+
+    <filter>
+        <filter-name>QueryParamOverrideHttpMethodFilter</filter-name>
+        <filter-class>pureweb.servlet.QueryParamOverrideHttpMethodFilter</filter-class>
+    </filter>
+
+    <filter>
+        <description>
+            This filter maps overloaded requests with a "_method" parameter to
+            the appropriate spring web mvc request mapping
+        </description>
+        <filter-name>HttpMethodFilter</filter-name>
+        <filter-class>org.springframework.web.filter.HiddenHttpMethodFilter</filter-class>
+    </filter>
+
+    <filter>
+        <filter-name>RequestLoggingFilter</filter-name>
+        <filter-class>pureweb.servlet.RequestLoggingFilter</filter-class>
+    </filter>
+
+    <filter>
+        <description>
+            This filter allows adds headers required for Cross Origin Resource Sharing.
+            http://www.w3.org/TR/cors/
+        </description>
+        <filter-name>CrossOriginResourceSharing</filter-name>
+        <filter-class>pureweb.servlet.CrossOriginResourceSharingFilter</filter-class>
+    </filter>
+
+    <filter>
+        <description>
+            This filter allows configurable redirects from old urls to
+            new urls and is used to maintain backwards compatibility with
+            existing clients that make use of the old urls.
+        </description>
+        <filter-name>RedirectingFilter</filter-name>
+        <filter-class>pureweb.servlet.RedirectingFilter</filter-class>
+        <init-param>
+            <param-name>/</param-name>
+            <param-value>/pureweb/server/home</param-value>
+        </init-param>
+        <init-param>
+            <param-name>/status.jsp</param-name>
+            <param-value>/pureweb/server/status</param-value>
+        </init-param>
+        <init-param>
+            <param-name>/cluster.jsp</param-name>
+            <param-value>/pureweb/server/cluster</param-value>
+        </init-param>
+        <init-param>
+            <param-name>/grid.jsp</param-name>
+            <param-value>/pureweb/server/grid</param-value>
+        </init-param>
+        <init-param>
+            <param-name>/testdata.jsp</param-name>
+            <param-value>/pureweb/testing/data</param-value>
+        </init-param>
+        <init-param>
+            <param-name>/serieslist</param-name>
+            <param-value>/pureweb/serieslist</param-value>
+        </init-param>
+    </filter>
+
+    <filter>
+        <filter-name>springSecurityFilterChain</filter-name>
+        <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    </filter>
+
+    <filter>
+        <filter-name>cacheControlFilter</filter-name>
+        <filter-class>pureweb.servlet.CacheControlFilter</filter-class>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>CharsetFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>QueryParamOverrideHttpMethodFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>HeaderOverrideHttpMethodFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>HttpMethodFilter</filter-name>
+        <servlet-name>/*</servlet-name>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>CrossOriginResourceSharing</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>RequestLoggingFilter</filter-name>
+        <servlet-name>dispatcher</servlet-name>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>RedirectingFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+<!--
+    <filter-mapping>
+        <filter-name>LoginBypassFilter</filter-name>
+        <url-pattern>/pureweb/app</url-pattern>
+        <url-pattern>/pureweb/view</url-pattern>        
+    </filter-mapping>
+-->
+    
+    <filter-mapping>
+        <filter-name>springSecurityFilterChain</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>cacheControlFilter</filter-name>
+        <url-pattern>*.jsp</url-pattern>
+    </filter-mapping>
+
+    <filter-mapping>
+        <filter-name>cacheControlFilter</filter-name>
+        <url-pattern>/pureweb/*</url-pattern>
+    </filter-mapping>
+
+    <listener>
+        <listener-class>
+            pureweb.servlet.ContextListener
+        </listener-class>
+    </listener>
+
+    <listener>
+        <listener-class>
+            pureweb.servlet.SessionListener
+        </listener-class>
+    </listener>
+
+    <listener>
+        <listener-class>
+            org.springframework.web.context.request.RequestContextListener
+        </listener-class>
+    </listener>
+
+    <servlet>
+        <servlet-name>ProcessManagerCompatibilityServlet</servlet-name>
+        <servlet-class>
+            pureweb.servlet.ProcessManagerCompatibilityServlet
+        </servlet-class>
+        <load-on-startup>3</load-on-startup>
+    </servlet>
+
+    <servlet>
+        <servlet-name>FeedbackServlet</servlet-name>
+        <servlet-class>
+            pureweb.servlet.FeedbackServlet
+        </servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>dispatcher</servlet-name>
+        <servlet-class>
+             pureweb.servlet.PluginDispatcherServlet
+        </servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>dispatcher</servlet-name>
+        <url-pattern>/pureweb/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>ProcessManagerCompatibilityServlet</servlet-name>
+        <url-pattern>/acquire</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>ProcessManagerCompatibilityServlet</servlet-name>
+        <url-pattern>/app</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>FeedbackServlet</servlet-name>
+        <url-pattern>/feedback</url-pattern>
+    </servlet-mapping>
+
+    <!-- uncaught exceptions -->
+
+    <error-page>
+        <exception-type>java.lang.Throwable</exception-type>
+        <location>/pureweb/exception</location>
+    </error-page>
+
+    <!-- 4xx client errors -->
+
+    <error-page>
+        <error-code>400</error-code>
+        <location>/pureweb/error/400</location>
+    </error-page>
+
+    <error-page>
+        <error-code>401</error-code>
+        <location>/pureweb/error/401</location>
+    </error-page>
+
+    <error-page>
+        <error-code>402</error-code>
+        <location>/pureweb/error/403</location>
+    </error-page>
+
+    <error-page>
+        <error-code>403</error-code>
+        <location>/pureweb/error/403</location>
+    </error-page>
+
+    <error-page>
+        <error-code>404</error-code>
+        <location>/pureweb/error/404</location>
+    </error-page>
+
+    <error-page>
+        <error-code>405</error-code>
+        <location>/pureweb/error/405</location>
+    </error-page>
+
+    <error-page>
+        <error-code>406</error-code>
+        <location>/pureweb/error/406</location>
+    </error-page>
+
+    <!--  5xx server errors -->
+
+    <error-page>
+        <error-code>500</error-code>
+        <location>/pureweb/error/500</location>
+    </error-page>
+
+    <error-page>
+        <error-code>501</error-code>
+        <location>/pureweb/error/501</location>
+    </error-page>
+
+    <error-page>
+        <error-code>502</error-code>
+        <location>/pureweb/error/502</location>
+    </error-page>
+
+    <error-page>
+        <error-code>503</error-code>
+        <location>/pureweb/error/503</location>
+    </error-page>
+
+    <error-page>
+        <error-code>504</error-code>
+        <location>/pureweb/error/504</location>
+    </error-page>
+
+    <error-page>
+        <error-code>505</error-code>
+        <location>/pureweb/error/505</location>
+    </error-page>
+
+</web-app>

@@ -1,0 +1,915 @@
+/**
+ * Created with IntelliJ IDEA.
+ * User: pfederl
+ * Date: 10/04/13
+ * Time: 7:34 PM
+ *
+ * Global State module
+ *
+ * It is responsible for managing _everything_ PureWeb related, including:
+ *   - connecting-to/disconnecting-from server
+ *   - registering/resizing views
+ *   - listening to state changes
+ *   - parsing state changes
+ *   - setting state
+ *   - sending commands
+ */
+
+"use strict";
+
+goog.provide("fv.GlobalStatePW");
+goog.require("fv.console");
+goog.require("fv.lib.Hub");
+
+/* JsHint options */
+/* global pureweb */
+/* global fv */
+
+
+(function () {
+
+    var DEBUG = true && fv.GLOBAL_DEBUG;
+    DEBUG && fv.console.log("GlobalStatePW module loading");
+
+    /**
+     *
+     * @param hub {fv.lib.Hub} hub on which to send/receive messages
+     * @constructor
+     */
+    fv.GlobalStatePW = function (hub) {
+        /**
+         * @type {fv.lib.Hub}
+         */
+        this.m_hub = hub;
+        this.m_dc = 0;
+
+        this.m_lastSessionState = null;
+
+        this.m_shareUrl = null;
+
+        /**
+         * Map of registered PureWeb views, the key is the view name (NOT DOM ID!!!)
+         * @type {{}}
+         */
+        this.m_views = {};
+
+        // public members - describing the state
+
+        /**
+         * parsed state
+         *
+         * Do not replace this object, other objects are likely to keep a reference to this
+         */
+        this.parsedState = {};
+
+        this.parsedState.mainWindow = {
+            title: null,
+            cursor: {
+                part1: "",
+                part2: "",
+                value: "",
+                frameString: "",
+                wcs: null,
+                isOutside: false,
+                mouseX: 0,
+                mouseY: 0,
+                cursorFrozen: false
+            },
+            header: "",
+            currentFrame: 1,
+            totalFrames: 1,
+            tx: { xa: 1, xb: 0, ya: 1, yb: 0},
+            visibleImageRect: {
+                x1: 0, x2: 0,
+                y1: 0, y2: 0
+            }
+        };
+
+        this.parsedState.mainWindow.tx.txObj = {
+/*
+            mouse2serverImagef: goog.bind( this._mainViewMouse2serverImagef, this),
+            serverImage2mousef: goog.bind( this._mainViewServerImage2mousef, this)
+*/
+            mouse2serverImagef: this._mainViewMouse2serverImagef.bind(this),
+            serverImage2mousef: this._mainViewServerImage2mousef.bind(this)
+        };
+
+        this.parsedState.histogram = {
+            preset: -1,
+            lowerClip: NaN,
+            upperClip: NaN,
+            frameMin: NaN,
+            frameMax: NaN,
+            nNaNs: 0,
+            binValue: NaN,
+            nValuesInBin: 0,
+            trueCount: NaN,
+            marker1: 0,
+            marker2: 0
+        };
+
+        this.parsedState.movie = {
+            currentFrame: 0,
+            numFrames: 1,
+            frameDelay: 200,
+            status: "stopped",
+            isBouncing: false,
+            startFrame: 0,
+            endFrame: 0,
+            frameSkip: 1
+        };
+
+        this.parsedState.regionStats = {
+            isNull: true,
+            width: 1,
+            height: 1,
+            totalPixels: 1,
+            nanPixels: 0,
+            average: 0,
+            sum: 0,
+            rms: 0,
+            min: 0,
+            max: 0,
+            bkgLevel: 0,
+            sumMinusBkg: 0,
+            maxMinusBkg: 0,
+            masPos1: "n/a",
+            maxPos2: "n/a",
+            depth: 1,
+            currentFrame: 1,
+            nFramesComputed: 1,
+            totalFluxDensity: 0,
+            aboveBackground: 0,
+            beamArea: 0
+        };
+
+        this.parsedState.gauss2dFit = {
+            ng: 0,
+            isNull: true,
+            status: "n/a",
+            chisq: "n/a",
+            rms: "n/a",
+            frame: 0,
+            constantTerm: "n/a",
+            params: [{
+                peak: "n/a",
+                centerPix: "n/a",
+                centerWCS: "n/a",
+                sizePix: "n/a",
+                angle: "n/a"
+            }]
+        };
+
+        function ProfileData() {
+            this.stamp = null;
+            this.data = [];
+            this.total = 0;
+        }
+
+        this.parsedState.profiles = {};
+        this.parsedState.profiles.ix = new ProfileData();
+        this.parsedState.profiles.iy = new ProfileData();
+        this.parsedState.profiles.iz = new ProfileData();
+        this.parsedState.profiles.qz = new ProfileData();
+        this.parsedState.profiles.uz = new ProfileData();
+
+        this.parsedState.fileShortcuts = [];
+    };
+
+    /**
+     * prefixed emit
+     * @param path
+     * @param data
+     */
+    fv.GlobalStatePW.prototype.emit = function (pathSuffix, data) {
+        this.m_hub.emit("gs." + pathSuffix, data);
+    };
+
+    /**
+     * Starts up the global state module
+     *   - starts up pure web connection to client
+     *     - when connection is established, emits 'gs.connected' event to the hub
+     *   - listens to state change events from PureWeb and emits them to the hub
+     *   - listens to message from the hub and translates them to PureWeb command/state changes
+     * @returns void
+     */
+    fv.GlobalStatePW.prototype.run = function () {
+        // if the client was downloaded using an app URI then at this point location.href
+        // will be the session URI to connect with. Otherwise client was downloaded using a view
+        // URI, so construct the app URI (without the client) to connect with.
+        var uri = location.href;
+        if (!pureweb.getClient().isaSessionUri(uri)) {
+            uri = location.protocol + '//' + location.host + '/pureweb/app?name=' + pureweb.getServiceAppName(uri);
+        }
+
+        var client = pureweb.getClient();
+
+        pureweb.listen(client, pureweb.client.WebClient.EventType.CONNECTED_CHANGED,
+            this.onConnectedChanged, false, this);
+
+        // TODO: this should probably be a hub message received
+        // setup the window.onbeforeunload callback to disconnect from the service application
+        window.addEventListener("beforeunload", function () {
+            if (client.isConnected()) {
+                client.disconnect(false);
+            }
+        }, true);
+
+        // register all pureweb state listeners
+        // ====================================
+        var serverStateChangeListeners = [
+            [ "/title", this._titleChangedCB],
+            [ "/VisibleImageRect", this._visibleImageRectCB],
+            [ "/Status/dc", this._statusCB],
+            [ "/FITSHeader", this._fitsHeaderCB],
+            [ "/fileShortcuts/num", this._fileShortcutsCB ],
+            [ "/RS/stamp", this._regionStatsCB ],
+            [ "/Gauss2d/stamp", this._gauss2dFitCB ],
+            [ "/profiles/ix/dc", goog.bind( this._parseProfile, this, "ix") ],
+            [ "/profiles/iy/dc", goog.bind( this._parseProfile, this, "iy") ],
+            [ "/profiles/iz/dc", goog.bind( this._parseProfile, this, "iz") ],
+            [ "/profiles/qz/dc", goog.bind( this._parseProfile, this, "qz") ],
+            [ "/profiles/uz/dc", goog.bind( this._parseProfile, this, "uz") ]
+
+        ];
+        serverStateChangeListeners.forEach(function (e) {
+            pureweb.getFramework().getState().getStateManager().addValueChangedHandler(
+                e[0], e[1], this);
+        }, this);
+        pureweb.getFramework().getState().getStateManager().addChildChangedHandler(
+            "/Histogram", this._parseHistogramStateCB, this);
+        pureweb.getFramework().getState().getStateManager().addChildChangedHandler(
+            "/Movie", this._parseMovieStateCB, this);
+
+        // register all hub listeners
+        var hubListeners = [
+            // TODO: replace this with more specific messages in controller?
+            [ "togs.parsedStateRequest", this._parsedStateRequestHandler ],
+            [ "togs.mainWindow.grid.*", this._gridHandler ],
+            [ "togs.mainWindow.setWCS", this._gridHandler ],
+            [ "togs.mainWindow.mouseMove", this._mainWindowMouseMoveHandler ],
+            [ "togs.mainWindow.mouseClick", this._mainWindowMouseClickHandler ],
+            [ "togs.mainWindow.mouseWheel", this._mainWindowMouseWheelHandler ],
+            [ "togs.mainWindow.zoomRect", this._mainWindowZoomRectHandler ],
+            [ "togs.mainWindow.regionSet", this._regionSetHandler ],
+            [ "togs.mainWindow.zoomPreset", this._mainWindowZoomPresetHandler ],
+            [ "togs.mainWindow.keyDown", this._mainWindowKeyDownHandler ],
+            [ "togs.colormap.preset", this._colormapHandler ],
+            [ "togs.view.register", this._registerViewHandler ],
+            [ "togs.view.resize", this._resizeViewHandler ],
+            [ "togs.colormap.reverse", this._colormapReverseHandler ],
+            [ "togs.colormap.invert", this._colormapInvertHandler ],
+            [ "togs.colormap.sliders", this._colormapSlidersHandler ],
+            [ "togs.histogram.preset", this._histogramPresetHandler ],
+            [ "togs.histogram.setMarkers", this._histogramSetMarkersHandler ],
+            [ "togs.histogram.zoom", this._histogramZoomHandler ],
+            [ "togs.histogram.logScale", this._histogramLogScaleHandler ],
+            [ "togs.histogram.smoothGraph", this._histogramSmoothGraphHandler ],
+            [ "togs.histogram.setCursor", this._histogramSetCursorHandler ],
+            [ "togs.loadFileShortcut", this._loadFileShortcutHandler ],
+            [ "togs.movie.request", this._movieHandler ],
+            [ "togs.profile.*", this._profileHandler ]
+
+        ];
+        hubListeners.forEach(function (e) {
+            this.m_hub.subscribe(e[0], e[1], this);
+        }, this);
+
+        //everything is setup and ready to go - connect
+        console.log("connecting to pureweb using uri = ", uri);
+        pureweb.connect(uri);
+    };
+
+    fv.GlobalStatePW.prototype._pwget = function (key) {
+        return pureweb.getFramework().getState().getValue(key);
+    };
+
+    fv.GlobalStatePW.prototype._pwset = function (key, value) {
+//        DEBUG && fv.console.log("pwset ", key, value);
+        return pureweb.getFramework().getState().setValue(key, value);
+    };
+
+    fv.GlobalStatePW.prototype._pwsetdc = function (key, value) {
+        var valuedc = value + " " + this.m_dc.toString();
+        this.m_dc++;
+        return this._pwset(key, valuedc);
+    };
+
+    fv.GlobalStatePW.prototype._sendCommand = function (cmd, data) {
+//        DEBUG && fv.console.log("Sending command ", cmd, data);
+        pureweb.getClient().queueCommand(cmd, data);
+    };
+
+// state change callbacks
+    fv.GlobalStatePW.prototype._titleChangedCB = function () {
+        this.parsedState.mainWindow.title = this._pwget('/title');
+        this.emit("mainWindow.title", this.parsedState.mainWindow.title);
+    };
+
+    fv.GlobalStatePW.prototype._visibleImageRectCB = function () {
+        var st = this.parsedState.mainWindow.visibleImageRect;
+        var s = this._pwget( "/VisibleImageRect");
+        var a = s.split(" ");
+        if(a.length != 4) {
+            st.x1 = 0;
+            st.x2 = 0;
+            st.y1 = 0;
+            st.y2 = 0;
+        }
+        else {
+            st.x1 = parseFloat( a[0]);
+            st.x2 = parseFloat( a[1]);
+            st.y1 = parseFloat( a[2]);
+            st.y2 = parseFloat( a[3]);
+
+        }
+        this.emit("mainWindow.visibleImageRect", st);
+    };
+
+
+    fv.GlobalStatePW.prototype._statusCB = function () {
+        this.parsedState.mainWindow.cursor.part1 = this._pwget("/Status/Cursor");
+        this.parsedState.mainWindow.cursor.part2 = this._pwget("/Status/Cursor2");
+        this.parsedState.mainWindow.cursor.value = this._pwget("/Status/Value");
+        this.parsedState.mainWindow.cursor.frameString = this._pwget("/Status/Frame");
+        this.parsedState.mainWindow.cursor.wcs = this._pwget("/Status/WCS");
+        this.parsedState.mainWindow.cursor.isOutside = this._pwget("/Status/isOutside") === "1";
+        this.parsedState.mainWindow.cursor.cursorFrozen = this._pwget("/Status/cursorFrozen") === "1";
+        this.parsedState.mainWindow.cursor.mouseX = parseInt( this._pwget("/Status/mouseX"));
+        this.parsedState.mainWindow.cursor.mouseY = parseInt( this._pwget("/Status/mouseY"));
+        this.emit("mainWindow.cursor", this.parsedState.mainWindow.cursor);
+    };
+
+    fv.GlobalStatePW.prototype._fitsHeaderCB = function () {
+        this.parsedState.header = this._pwget("/FITSHeader");
+        this.emit("header", this.parsedState.header);
+    };
+
+    fv.GlobalStatePW.prototype._fileShortcutsCB = function () {
+        DEBUG && fv.console.log("_fileShortcutsCB is running....");
+        this.parsedState.fileShortcuts = [];
+        var s = this._pwget("/fileShortcuts/num");
+        if (s === null) return;
+        var num = parseInt(s);
+        if (isNaN(num)) return;
+        for (var i = 0; i < num; i++) {
+            s = this._pwget("/fileShortcuts/file" + i.toString());
+            this.parsedState.fileShortcuts.push(s);
+        }
+        this.emit("fileShortcuts", this.parsedState.fileShortcuts);
+    };
+
+    fv.GlobalStatePW.prototype._parseHistogramStateCB = function (e) {
+        var DEBUG = true;
+        DEBUG && fv.console.log("child changed %O", e);
+        this.parsedState.histogram.lowerClip = this._pwget("/Histogram/LowerClip");
+        this.parsedState.histogram.upperClip = this._pwget("/Histogram/UpperClip");
+        this.parsedState.histogram.frameMin = this._pwget("/Histogram/GlobalMin");
+        this.parsedState.histogram.frameMax = this._pwget("/Histogram/GlobalMax");
+        this.parsedState.histogram.preset = this._pwget("/Histogram/Index");
+        this.parsedState.histogram.marker1 = this._pwget("/Histogram/marker1");
+        this.parsedState.histogram.marker2 = this._pwget("/Histogram/marker2");
+        this.parsedState.histogram.nNaNs = this._pwget("/Histogram/nNaNs");
+        this.parsedState.histogram.binValue = this._pwget("/Histogram/binValue");
+        this.parsedState.histogram.nValuesInBin = this._pwget("/Histogram/nValuesInBin");
+        this.parsedState.histogram.trueCount = this._pwget("/Histogram/trueCount");
+
+        this.emit("histogram.changed", this.parsedState.histogram);
+    };
+
+    fv.GlobalStatePW.prototype._parseMovieStateCB = function () {
+        var DEBUG = false;
+        DEBUG && fv.console.group("parsing movie state");
+        var st = this.parsedState.movie; // shortcut
+        st.currentFrame = parseInt(this._pwget("/Movie/CurrentFrame"));
+        st.numFrames = parseInt(this._pwget("/Movie/TotalFrames"));
+        st.frameDelay = parseInt(this._pwget("/Movie/frameDelay"));
+        st.isBouncing = this._pwget("/Movie/isBouncing") === "true";
+        st.startFrame = parseInt(this._pwget("/Movie/startFrame"));
+        st.endFrame = parseInt(this._pwget("/Movie/endFrame"));
+        st.frameSkip = parseInt(this._pwget("/Movie/frameSkip"));
+        st.status = this._pwget("/Movie/status");
+
+        DEBUG && fv.console.log("st = %O", st);
+
+        this.emit("movie.changed", this.parsedState.movie);
+        DEBUG && fv.console.groupEnd();
+    };
+
+    fv.GlobalStatePW.prototype._regionStatsCB = function () {
+        DEBUG && fv.console.group("parsing region stats");
+        var st = this.parsedState.regionStats; // shortcut
+
+        st.isNull = this._pwget( "/RS/isNull") === "1";
+        st.width = this._pwget( "/RS/width");
+        st.height = this._pwget( "/RS/height");
+        st.totalPixels = this._pwget( "/RS/totalPixels");
+        st.nanPixels = this._pwget( "/RS/nanPixels");
+        st.average = this._pwget( "/RS/average");
+        st.sum = this._pwget( "/RS/sum");
+        st.rms = this._pwget( "/RS/rms");
+        st.min = this._pwget( "/RS/min");
+        st.max = this._pwget( "/RS/max");
+        st.bkgLevel = this._pwget( "/RS/bkgLevel");
+        st.sumMinusBkg = this._pwget( "/RS/sumMinusBkg");
+        st.maxMinuxBkg = this._pwget( "/RS/maxMinusBkg");
+/*
+        st.maxPosX = this._pwget( "/RS/maxPos/x");
+        st.maxPosY = this._pwget( "/RS/maxPos/y");
+        st.maxPosExtra = this._pwget( "/RS/maxPos/extra");
+*/
+        st.maxPos1 = this._pwget( "/RS/maxPos/line1");
+        st.maxPos2 = this._pwget( "/RS/maxPos/line2");
+
+        st.depth = this._pwget( "/RS/depth");
+        st.currentFrame = this._pwget( "/RS/currentFrame");
+        st.nFramesComputed = this._pwget( "/RS/nFramesComputed");
+        st.totalFluxDensity = this._pwget( "/RS/totalFluxDensity");
+        st.aboveBackground = this._pwget( "/RS/aboveBackground");
+        st.beamArea = this._pwget( "/RS/beamArea");
+
+        DEBUG && fv.console.log("st = %O", st);
+
+        this.emit("regionStats.changed", st);
+        DEBUG && fv.console.groupEnd();
+    };
+
+    fv.GlobalStatePW.prototype._gauss2dFitCB = function () {
+        DEBUG && fv.console.group("parsing gauss 2d results");
+        var st = this.parsedState.gauss2dFit; // shortcut
+
+        st.isNull = this._pwget( "/Gauss2d/isNull") === "1";
+        st.chisq = this._pwget( "/Gauss2d/chisq");
+        st.rms = this._pwget( "/Gauss2d/rms");
+        st.frame = this._pwget( "/Gauss2d/frame");
+        st.status = this._pwget( "/Gauss2d/status");
+        st.ng = parseInt( this._pwget( "/Gauss2d/ng"));
+
+        var params = this._pwget( "/Gauss2d/params");
+        var i = 0;
+
+        // parse the parameters
+        var arr = params.split(" ");
+        for (i = 0; i < arr.length; i++) {
+            arr[i] = arr[i].split("_").join(" ");
+        }
+        if (arr.length > 0) {
+            st.constantTerm = arr[ arr.length - 1].toString();
+        } else {
+            st.constantTerm = "n/a";
+        }
+
+        st.params = [];
+        for (i = 0; i < st.ng; i++) {
+            st.params.push({
+                peak: arr[i*5 + 0],
+                centerPix: arr[i*5 + 1],
+                centerWCS: arr[i*5 + 2],
+                sizePix: arr[i*5 + 3],
+                angle: arr[i*5 + 4]
+            });
+        }
+
+
+
+        DEBUG && fv.console.log("st = %O", st);
+
+        this.emit("gauss2dFit.changed", st);
+        DEBUG && fv.console.groupEnd();
+    };
+
+/*
+ fv.GlobalStatePW.prototype._profileIxCB = function () {
+ this._parseProfile( "ix");
+        var DEBUG = false;
+        DEBUG && fv.console.group("parsing ix profile");
+        var st = this.parsedState.profiles.ix; // shortcut
+        st.stamp = this._pwget( "/profiles/ix/stamp");
+        st.total = this._pwget( "/profiles/ix/total");
+        st.data = [];
+        var a = this._pwget( "/profiles/ix/data");
+        a = a.split(" ");
+        a.forEach( function(e){
+            st.data.push( parseFloat( e));
+        }, this);
+
+        DEBUG && fv.console.log("st = %O", st);
+
+        this.emit("profile.changed", { name: "ix", state: st });
+        DEBUG && fv.console.groupEnd();
+    };
+ */
+
+    fv.GlobalStatePW.prototype._parseProfile = function ( id) {
+        var DEBUG = false;
+        DEBUG && fv.console.group("parsing " + id + " profile");
+        var st = this.parsedState.profiles[id]; // shortcut
+        st.stamp = this._pwget( "/profiles/" + id + "/stamp");
+        st.total = this._pwget( "/profiles/" + id + "/total");
+        st.data = [];
+        st.cursor = this._pwget( "/profiles/" + id + "/cursor");
+        var dataString = this._pwget( "/profiles/" + id + "/data");
+/*
+        if( id === "ix") {
+            fv.console.log( "cursor = ", st.cursor);
+            fv.console.log( "ix data[" +  dataString.length + "] = ", dataString.slice(0,50));
+        }
+*/
+        var a = dataString.split(" ");
+        a.forEach( function(e){
+            st.data.push( parseFloat( e));
+        }, this);
+
+        DEBUG && fv.console.log("st = %O", st);
+
+        this.emit("profile.changed", { name: id, state: st });
+        DEBUG && fv.console.groupEnd();
+    };
+
+
+
+// hub message handlers
+    fv.GlobalStatePW.prototype._gridHandler = function (val, pth) {
+        if (pth === "togs.mainWindow.grid.visible") {
+            this._sendCommand("SetWCS", { gridVisible: val ? "ON" : "OFF" });
+        }
+        else if (pth === "togs.mainWindow.grid.lineColor") {
+            this._sendCommand("SetWCS", { lineColor: val });
+        }
+        else if (pth === "togs.mainWindow.grid.textColor") {
+            this._sendCommand("SetWCS", { textColor: val });
+        }
+        else if (pth === "togs.mainWindow.setWCS") {
+            this._sendCommand("SetWCS", { wcs: val });
+        }
+        else {
+            DEBUG && fv.console.warn("GS::_gridHandler - unknown msg: ", pth);
+        }
+    };
+    fv.GlobalStatePW.prototype._parsedStateRequestHandler = function () {
+        this.emit("parsedState", this.parsedState);
+    };
+    fv.GlobalStatePW.prototype._colormapHandler = function (val) {
+        this._pwset("/Colormap/Preset", val);
+    };
+    fv.GlobalStatePW.prototype._mainWindowMouseMoveHandler = function (val) {
+        var pt = this._viewToServer(val.viewName, { x: val.x, y: val.y });
+        this._pwset("/requests/mainwindow-cursor", pt.x + " " + pt.y);
+    };
+    fv.GlobalStatePW.prototype._mainWindowMouseClickHandler = function (val) {
+        var pt = this._viewToServer(val.viewName, { x: val.x, y: val.y });
+        this._sendCommand("MainView-click", pt);
+    };
+    fv.GlobalStatePW.prototype._mainWindowMouseWheelHandler = function (val) {
+        var pt = this._viewToServer(val.viewName, { x: val.x, y: val.y });
+        this._sendCommand("MainView-wheel", {
+            x: pt.x, y: pt.y, delta: val.delta
+        });
+    };
+    fv.GlobalStatePW.prototype._mainWindowZoomRectHandler = function (val) {
+        var pt1 = this._viewToServer(val.viewName, { x: val.x1, y: val.y1 });
+        var pt2 = this._viewToServer(val.viewName, { x: val.x2, y: val.y2 });
+        this._sendCommand("MainView-rectangle", {
+            x1: pt1.x, y1: pt1.y, x2: pt2.x, y2: pt2.y
+        });
+    };
+    fv.GlobalStatePW.prototype._mainWindowZoomPresetHandler = function (val) {
+        if (val.zoom < 0)
+            this._sendCommand("SetSliderZoom", { zoom: val.zoom });
+        else
+            this._sendCommand("SetPixelZoom", { zoom: val.zoom });
+    };
+    fv.GlobalStatePW.prototype._mainWindowKeyDownHandler = function (val) {
+        this._sendCommand("MainView-keyDown", {
+            mouseX: val.mouseX,
+            mouseY: val.mouseY,
+            keyCode: val.keyCode
+        });
+    };
+    fv.GlobalStatePW.prototype._regionSetHandler = function (val) {
+        fv.console.log( "regionSet ", val);
+        if( val.regionId === "regionStats") {
+            this._pwset( "/requests/set-rs-region",
+                val.x1 + " " + val.y1 + " " + val.x2 + " " + val.y2 );
+        }
+        else if( val.regionId === "g2dFit") {
+            this._pwset( "/requests/set-g2dfit-region",
+                val.ng + " " + val.x1 + " " + val.y1 + " " + val.x2 + " " + val.y2 );
+        }
+        else {
+            fv.console.warn( "setRegion with unknown id=", val.regionId);
+        }
+    };
+
+    fv.GlobalStatePW.prototype._registerViewHandler = function (val) {
+        var DEBUG = false;
+        var pw = this.m_views[ val.viewName];
+        if (pw !== undefined) {
+            throw new Error("PureWebView '" + val.viewName + "' is already defined");
+        }
+        // create a PureWeb view
+        pw = new pureweb.client.View({id: val.id, viewName: val.viewName });
+//        pw.setPreferredImageFormat(val.format);
+        // set the view's encoding parameters
+        var interactiveQuality, fullQuality;
+        if( val.format === "JPEG") {
+            interactiveQuality = new pureweb.client.EncoderFormat(pureweb.SupportedEncoderMimeType.JPEG, 30);
+            fullQuality = new pureweb.client.EncoderFormat(pureweb.SupportedEncoderMimeType.JPEG, 30);
+        }
+        else {
+            interactiveQuality = new pureweb.client.EncoderFormat(pureweb.SupportedEncoderMimeType.PNG);
+            fullQuality = new pureweb.client.EncoderFormat(pureweb.SupportedEncoderMimeType.PNG);
+        }
+        pw.setEncoderConfiguration( new pureweb.client.EncoderConfiguration(interactiveQuality, fullQuality));
+
+        pw.resize();
+        this.m_views[ val.viewName] = pw;
+
+        // for MainView there are transformation parameters attached, save them and emit an
+        // event
+        if( val.viewName === "MainView") {
+            pureweb.listen(pw, pureweb.client.View.EventType.VIEW_UPDATED,
+                function(e){
+                    DEBUG && fv.console.log( "this = %O", this);
+                    DEBUG && fv.console.log( "e = %O", e);
+                    var params = e.args.getEncodingParameters();
+                    this.parsedState.mainWindow.tx.xa = parseFloat(params.txa);
+                    this.parsedState.mainWindow.tx.xb = parseFloat(params.txb);
+                    this.parsedState.mainWindow.tx.ya = parseFloat(params.tya);
+                    this.parsedState.mainWindow.tx.yb = parseFloat(params.tyb);
+                    this.emit( "mainWindow.txChanged", this.parsedState.mainWindow.tx.txObj);
+                }, false, this);
+        }
+        else {
+            pureweb.listen( pw, pureweb.client.View.EventType.VIEW_UPDATED,
+                function(e){
+                    var params = e.args.getEncodingParameters();
+                    if( params.hasCustom != null)
+                        this.emit( "viewParametersChanged." + val.viewName, params);
+                }, false, this);
+        }
+    };
+    fv.GlobalStatePW.prototype._resizeViewHandler = function (val) {
+        var pw = this.m_views[ val.viewName];
+        if (pw === undefined) {
+            throw new Error("PureWebView '" + val.id + "' is not yet defined");
+        }
+        pw.resize();
+    };
+    fv.GlobalStatePW.prototype._colormapReverseHandler = function (val) {
+        this._pwset("/Colormap/Reverse", val ? "1" : "0");
+    };
+    fv.GlobalStatePW.prototype._colormapInvertHandler = function (val) {
+        this._pwset("/Colormap/Invert", val ? "1" : "0");
+    };
+    fv.GlobalStatePW.prototype._colormapSlidersHandler = function (val) {
+        this._pwset("/Colormap/Red", val.red);
+        this._pwset("/Colormap/Green", val.green);
+        this._pwset("/Colormap/Blue", val.blue);
+        this._pwset("/Colormap/scale1", val.s1);
+        this._pwset("/Colormap/scale2", val.s2);
+    };
+    fv.GlobalStatePW.prototype._histogramPresetHandler = function (val) {
+        this._sendCommand("histogram",
+            { cmd: "preset", index: val.index, zoom: val.zoom });
+    };
+    fv.GlobalStatePW.prototype._histogramSetMarkersHandler = function (val) {
+        this._sendCommand("histogram",
+            { cmd: "setMarkers", x1: val.marker1, x2: val.marker2 });
+    };
+    fv.GlobalStatePW.prototype._histogramZoomHandler = function (val) {
+        var cmd = val ? "zoom" : "unzoom";
+        this._sendCommand("histogram", { cmd: cmd });
+    };
+    fv.GlobalStatePW.prototype._histogramLogScaleHandler = function (val) {
+        this._sendCommand("histogram", { cmd: "logScale", val: val });
+    };
+    fv.GlobalStatePW.prototype._histogramSmoothGraphHandler = function (val) {
+        this._sendCommand("histogram", { cmd: "smoothGraph", val: val });
+    };
+    fv.GlobalStatePW.prototype._histogramSetCursorHandler = function (val) {
+        this._sendCommand("histogram", { cmd: "setCursor", x: val });
+    };
+    fv.GlobalStatePW.prototype._loadFileShortcutHandler = function (index) {
+        this._sendCommand("LoadFileShortcut", { index: index });
+    };
+    fv.GlobalStatePW.prototype._movieHandler = function (val) {
+        DEBUG && fv.console.log("GS::_movieHandler - msg: %O", val);
+        if (val.cmd === "setFrame") {
+            this._pwsetdc("/requests/movie/frame", val.val);
+        }
+        else if (val.cmd === "play") {
+            this._sendCommand("/movie/command", { cmd: "play"});
+        }
+        else if (val.cmd === "rplay") {
+            this._sendCommand("/movie/command", { cmd: "rplay"});
+        }
+        else if (val.cmd === "stop") {
+            this._sendCommand("/movie/command", { cmd: "stop"});
+        }
+        else if (val.cmd === "setFrameDelay") {
+            this._sendCommand("/movie/command", { cmd: "setFrameDelay", val: val.val });
+        }
+        else if (val.cmd === "setStartFrame") {
+            this._sendCommand("/movie/command", { cmd: "setStartFrame", val: val.val });
+        }
+        else if (val.cmd === "setEndFrame") {
+            this._sendCommand("/movie/command", { cmd: "setEndFrame", val: val.val });
+        }
+        else if (val.cmd === "setFrameSkip") {
+            this._sendCommand("/movie/command", { cmd: "setFrameSkip", val: val.val });
+        }
+        else if (val.cmd === "setBouncing") {
+            this._sendCommand("/movie/command", { cmd: "setBouncing", val: val.val });
+        }
+        else {
+            DEBUG && fv.console.warn("GS::_movieHandler - unknown msg: %O", val);
+        }
+    };
+
+    fv.GlobalStatePW.prototype._profileHandler = function (val, pth) {
+        var a = pth.split(".");
+        fv.assert( a != null && a.length > 0);
+        var cmd = a[ a.length-1];
+
+        if (cmd == "cursor1Change") {
+            this._sendCommand("profile-" + val.id, { cmd: "mouseCursor1", pos: val.mousePos });
+//            this._pwset( "/requests/profile/" + val.id + "/cursor1", "" + val.mousePos);
+        }
+        else if (cmd == "zoomX") {
+            this._sendCommand("profile-" + val.id, { cmd: "mouseZoomX", pos1: val.pos1, pos2: val.pos2 });
+        }
+        else if (cmd == "zoomY") {
+            this._sendCommand("profile-" + val.id, { cmd: "mouseZoomY", pos1: val.pos1, pos2: val.pos2 });
+        }
+        else if (cmd == "setAutoX") {
+            this._sendCommand("profile-" + val.id, { cmd: "setAutoX", val: val });
+        }
+        else if (cmd == "setAutoY") {
+            this._sendCommand("profile-" + val.id, { cmd: "setAutoY", val: val });
+        }
+
+        else {
+            DEBUG && fv.console.warn("GS::_profileHandler - unknown msg: ", pth, val);
+        }
+    };
+
+    /**
+     * Convert screen client coordinates to server screen coordinates
+     * @param viewName
+     * @param pt
+     * @returns {*}
+     * @private
+     */
+    fv.GlobalStatePW.prototype._viewToServer = function (viewName, pt) {
+        var pw = this.m_views[ viewName];
+        if (pw === undefined) {
+            return null;
+        }
+//        var res = pw.viewToImage({X: pt.x, Y: pt.y});
+//        return { x: res.X, y: res.Y };
+        var res = pw.sourceToLocal(pt);
+        return { x: res.x, y: res.y };
+    };
+
+    /**
+     * Convert from local mouse coordinates to server image coordinates (floating point)
+     * @param mousePt
+     * @private
+     */
+    fv.GlobalStatePW.prototype._mainViewMouse2serverImagef = function (mousePt) {
+        var t = this.parsedState.mainWindow.tx;
+        var serverPt = this._viewToServer( "MainView", mousePt);
+        var serverImagePt = {
+            x: (serverPt.x - t.xb) / t.xa,
+            y: (serverPt.y - t.yb) / t.ya
+        };
+        return serverImagePt;
+    };
+
+    /**
+     * Convert from server image coordinates to mouse coordinates.
+     * For example, (0,0) will return the top left coordinates of the first pixel in the image.
+     * @param mousePt
+     * @private
+     */
+    fv.GlobalStatePW.prototype._mainViewServerImage2mousef = function (serverImagePt) {
+        var t = this.parsedState.mainWindow.tx;
+        var serverPt =  {
+            x: t.xa * serverImagePt.x + t.xb,
+            y: t.ya * serverImagePt.y + t.yb
+        };
+        var mousePt = this._serverToView( "MainView", serverPt);
+        return mousePt;
+    };
+
+        /**
+     * Convert from server screen coordinates to client coordinates
+     * @param viewName
+     * @param pt
+     * @returns {*}
+     * @private
+     */
+    fv.GlobalStatePW.prototype._serverToView = function (viewName, pt) {
+        var pw = this.m_views[ viewName];
+        if (pw === undefined) {
+            return null;
+        }
+//        var res = pw.imageToView({X: pt.x, Y: pt.y});
+//        return { x: res.X, y: res.Y };
+        var res = pw.localToSource(pt);
+        return { x: res.x, y: res.y };
+    };
+
+
+//Connected changed event handler - creates the ScribbleView View instance and initializes the
+//diagnostics panel (if it is present).
+    fv.GlobalStatePW.prototype.onConnectedChanged = function (e) {
+        fv.console.log("GlobalStatePW:onConnectedChanged", e.target.isConnected(), e);
+        if (e.target.isConnected()) {
+            //register event listeners for connection stalled and session state failed events
+            var client = pureweb.getClient();
+            pureweb.listen(client, pureweb.client.WebClient.EventType.STALLED_CHANGED,
+                this.onStalledChanged, false, this);
+            pureweb.listen(client, pureweb.client.WebClient.EventType.SESSION_STATE_CHANGED,
+                this.onSessionStateChanged, false, this);
+            this.emit("connected");
+        }
+    };
+
+//Session state changed event handler - checks for the failed state.
+    fv.GlobalStatePW.prototype.onSessionStateChanged = function (event) {
+        fv.console.log("GlobalStatePW:onSessionStateChanged", event);
+        var sessionState = pureweb.getClient().getSessionState();
+        fv.console.log("onSessionChanged", event, sessionState);
+        if (sessionState === pureweb.client.SessionState.FAILED) {
+            if (this.m_lastSessionState === pureweb.client.SessionState.CONNECTING) {
+                // we have never actually connected
+                this.emit("connectionFailed");
+                fv.console.warn('Unable to connect to the Scribble service application.');
+            }
+            else {
+                // we were connected, but now we are not
+                this.emit("connectionLost");
+                fv.console.warn('Connection to the server has been lost. Refresh the page to restart.');
+            }
+        }
+        this.m_lastSessionState = sessionState;
+    };
+
+
+//Stalled state changed event handler - logs a message indicating if the connection to the service
+//application has entered the stalled state, or whether it has recovered.
+    fv.GlobalStatePW.prototype.onStalledChanged = function (event) {
+        if (pureweb.getClient().isStalled()) {
+            this.emit("connection.stalled");
+            fv.console.log('Connection to the Scribble service application has stalled and may have been lost.');
+        }
+        else {
+            this.emit("connection.unstalled");
+            fv.console.log('Connection to the Scribble service application has recovered.');
+        }
+    };
+
+//Asynchronously create or revoke a share URL.
+    fv.GlobalStatePW.prototype.generateShareUrl = function () {
+        //Grab a local ref to the webclient (save some typing)
+        var webClient = pureweb.getFramework().getClient();
+
+        //If we don't have a share URL...
+        if ((this.m_shareUrl === undefined) || (this.m_shareUrl === null)) {
+            //Generate a share URL (on the service)
+            var that = this;
+            webClient.getSessionShareUrlAsync('Scientific', '', 1800000, '', function (getUrl, exception) {
+                //Call back for share URL generation:
+                //If we got a valid Share URL
+                if ((getUrl !== null) && (getUrl !== undefined)) {
+                    //Set it locally
+                    that.m_shareUrl = getUrl;
+
+                    that.emit("shareUrl.ready", getUrl);
+                }
+                else {
+                    that.emit("shareUrl.error", exception.description);
+                }
+            });
+        }
+        else {
+            //If a share URL already exists, we just want to invalidate it
+            var that = this;
+            webClient.invalidateSessionShareUrlAsync(shareUrl, function (exception) {
+                if ((exception !== undefined) && (exception !== null)) {
+                    that.emit("shareUrl.error", exception.description);
+                }
+                else {
+                    that.emit("shareUrl.deactivated");
+                    that.shareUrl = null;
+                }
+            });
+        }
+    };
+
+
+})
+    ();
+

@@ -1,0 +1,48 @@
+{
+    // IMAGE CLIPPING AND COMBINING JOBS
+
+    "let" :
+    {
+        "RESPATH" : "./source/resource",
+        "BUILDPATH" : "./build/resource",
+        "QXRESPATH" : "${QOOXDOO_PATH}/framework/source/resource",
+        "CACHE"   : "${TMPDIR}/qx${QOOXDOO_VERSION}/cache"
+    },
+
+    "jobs" :
+    {
+        "image-combine-b64" :
+        {
+            "desc" : "Try to combine all images into base64",
+
+            "cache" :
+            {
+                "compile" : "${CACHE}"
+            },
+
+            "combine-images" :
+            {
+                "images" :
+                {
+                    "${RESPATH}/qapp/allImages.b64.json" :
+                    {
+                        "prefix": [ "${RESPATH}" ],
+                        "type"  : "base64",
+                        "input" :
+                            [
+                                {
+                                    "prefix": [ "${RESPATH}" ],
+                                    "files" :
+                                        [
+                                            "${RESPATH}/qapp/icons/histogram16.png",
+                                        ]
+                                }
+
+                            ],
+                        "layout" : "vertical"
+                    }
+                }
+            }
+        }
+    }
+}

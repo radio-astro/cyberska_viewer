@@ -1,0 +1,12 @@
+Release: Trunk
+
+Build Version: 4.1.2-24-g97c3281
+Build Date: 2014-07-28 10:59:41
+Build Host: build-ubuntu.calgaryscientific.local
+
+Source Revision: 97c32810162f6d3ec86cde6cfdbdb410c615b004
+Source Date: 2014-07-28 10:45:36 -0600
+
+Library Branch: http://vault/svn/library/suites/branches/PW-4.1/rhel5-64
+Library Revision: 2164
+Library Date: 2013-12-03 15:03:05 -0700

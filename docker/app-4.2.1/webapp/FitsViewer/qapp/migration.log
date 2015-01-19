@@ -1,0 +1,51 @@
+
+UPGRADE TO 3.0.1
+----------------------------------------------------------------------------
+  * Number of script input files: 33
+  * Number of HTML input files: 0
+  * Update to version: 3.0.1
+  * Searching for patch module...
+  * Searching for info expression data...
+    - Compiling expressions...
+    - Number of infos: 0
+  * Searching for patch expression data...
+    - Compiling expressions...
+    - Number of patches: 0
+
+  FILE PROCESSING:
+----------------------------------------------------------------------------
+  * Processing script files:
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/PureWebView.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/MoviePlayerWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/HeaderWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme2m/Appearance.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/simulation/DemoSimulation.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/RegionStatsWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/ColormapWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/FileShortcutsWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/SelectionCanvas.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme2m/Color.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/MainWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/Application.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/G2dFitWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme/Decoration.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/GrSlider.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme2m/Theme.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/ProfileWidget.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/BetterWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/__init__.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/MainSideBar.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/ErrorsAndWarnings.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/WindowManager.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/ProfileWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/TwoDSlider.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme2m/Decoration.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/ProfileController.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/test/DemoTest.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/widgets/HistogramWindow.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme/Appearance.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme/Font.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme/Color.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme2m/Font.js
+  - File: /home/pfederl/Work/PureWebRaiViewer-html5/fitsviewer/html5/qapp/source/class/qapp/theme/Theme.js
+  * Done

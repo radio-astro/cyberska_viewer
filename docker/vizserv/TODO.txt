@@ -1,0 +1,10 @@
+- Check for the accepts header and output JSON or HTML correspondingly
+- Status checking of the PureWeb server
+- Proper logging of requests
+- Proper testing
+- Documentation
+- Report expiry time in vizserv as seconds remaining rather than epoch time of
+  expiry
+
+- If running a VMOD server can sleep until almost about to expire and then
+  remove self from the list of machines.

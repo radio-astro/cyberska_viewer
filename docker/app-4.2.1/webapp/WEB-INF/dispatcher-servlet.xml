@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+                           http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+    <bean id="conversionService" class="org.springframework.context.support.ConversionServiceFactoryBean">
+        <property name="converters">
+            <list>
+                <bean class="pureweb.util.InetAddressConverter"/>
+                <bean class="pureweb.util.NetworkInterfaceConverter"/>
+            </list>
+        </property>
+    </bean>
+
+    <bean id="marshaller" class="pureweb.util.AutoXStreamMarshaller"/>
+
+    <bean id="viewResolver" class="org.springframework.web.servlet.view.BeanNameViewResolver">
+        <property name="order" value="1"/>
+    </bean>
+
+    <bean id="internalResolver" class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="prefix" value="/WEB-INF/views/"/>
+        <property name="order" value="2"/>
+    </bean>
+
+    <bean id="xmlView" class="org.springframework.web.servlet.view.xml.MarshallingView">
+        <property name="contentType" value="application/xml"/>
+        <property name="marshaller" ref="marshaller"/>
+        <property name="modelKey" value="xmlData"/>
+    </bean>
+ 
+    <bean id="stringConverter" class="pureweb.servlet.ConfigurableStringHttpMessageConverter">
+        <constructor-arg value="UTF-8"/>
+    </bean>
+
+    <bean id="jsonConverter" class="org.springframework.http.converter.json.MappingJacksonHttpMessageConverter">
+        <property name="objectMapper">
+            <bean id="objectMapper" class="org.codehaus.jackson.map.ObjectMapper">
+                <property name="serializationConfig.serializationInclusion" value="NON_NULL"/>
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="xmlConverter" class="org.springframework.http.converter.xml.MarshallingHttpMessageConverter">
+        <property name="marshaller" ref="marshaller"/>
+        <property name="unmarshaller" ref="marshaller"/>
+    </bean>
+
+    <bean class="org.springframework.web.servlet.mvc.annotation.AnnotationMethodHandlerAdapter">
+        <property name="messageConverters">
+            <list>
+                <ref bean="stringConverter"/>
+                <ref bean="xmlConverter"/>
+                <ref bean="jsonConverter"/>
+            </list>
+        </property>
+    </bean>
+
+    <bean id="themeResolver" class="pureweb.plugins.DefaultThemeResolver">
+        <description>
+            The DispatcherServlet looks for this bean by name to determine which
+            theme to use for each request. This theme resolver will use the
+            specified default theme name unless it detects that another
+            ThemeResolver has been provided by a plugin. If there is another
+            ThemeResolver available, that resolver will determine which theme to
+            use.
+        </description>
+        <property name="defaultThemeName" value="pureweb-theme"/>
+    </bean>
+
+    <bean id="localeResolver" class="pureweb.plugins.DefaultLocaleResolver">
+        <description>
+            The DispatcherServlet looks for this bean by name to determine which
+            local resolver to use for each request. This locale resolver delegate
+            the request to any LocaleResolver that has been provided by a plugin,
+            otherwise it just returns the request.getLocale(), which was the
+            default spring implementation.
+        </description>
+    </bean>
+
+    <bean id="supportedClientsMap" class="pureweb.cluster.SupportedClientsMap"/>
+    <bean id="servletContext" class="pureweb.servlet.ServletContextContainer"/>
+    <bean id="applicationRegistry" class="pureweb.service.ApplicationRegistry"/>
+    <bean id="pluginLinkRegistry" class="pureweb.process.PluginLinkRegistry"/>
+    <bean id="configurationPluginRegistry" class="pureweb.plugins.ConfigurationPluginRegistry"/>
+    <bean id="unmanagedApplicationRegistry" class="pureweb.service.UnmanagedApplicationRegistry"/>
+    <bean id="applicationConnectionBarrier" class="pureweb.service.ApplicationConnectionBarrier">
+         <property name="unmanagedApplicationRegistry" ref="unmanagedApplicationRegistry"/>
+         <!-- Number of milliseconds to wait without receiving a keep-alive from a queued unmanaged
+              service before purging it from the system.
+          -->
+         <property name="unmanagedServiceKeepAliveTimeout" value="5000"/>
+    </bean>
+    <bean id="pluginLoader" class="pureweb.servlet.PluginContextLoader" init-method="load" destroy-method="unload">
+        <property name="tenantContextManager" ref="tenantContextManager"/> 
+    </bean>
+    
+    <bean id="purewebPluginLoadCompleteEventDispatcher" class="pureweb.event.PurewebPluginLoadCompleteEventDispatcher"></bean>
+
+    <import resource="classpath*:**/*dispatcherContext.xml"/>
+</beans>
+

@@ -1,0 +1,265 @@
+body
+{
+    width: 100%;
+    background-color: black;
+    font-family: Verdana, sans-serif;
+    color: #FFFFFF;
+    font-size: 14px;
+    text-align: center;
+}
+
+#content
+{
+    width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+    text-align: left;
+}
+
+#header
+{
+    background: url("/themes/pureweb/pureweb_serverpagelogo.png") no-repeat left top;
+    width: 100%;
+    height: 80px;
+}
+
+#toplinks
+{
+    float: right;
+}
+
+#footer
+{
+    width: 100%;
+    text-align: center;
+    font-style: italic;
+    font-size: 11px;
+    margin-top: 10px;
+}
+
+.applauncher
+{
+	overflow: hidden;
+    display: block;
+    padding: 20px;
+    margin: 10px 0px 10px 0px;
+    font-size: 16px;
+    border: 1px solid white;
+    background-color: #111111;
+}
+
+.applauncher img
+{
+    float: left;
+	margin:10px;
+}
+
+.applauncher .name 
+{
+    font-size: 16pt;
+    margin:10px;
+}
+
+.applauncher .description
+{
+	float: left;
+	width: 410px;
+	height: 95px;
+	padding-left: 10px;
+	vertical-align: middle;
+}
+
+.applauncher .launchButton
+{
+	float: right;
+	margin:5px;
+}
+
+.node
+{
+    display: block;
+    padding: 20px;
+    margin: 10px 0px 10px 0px;
+    border: 1px solid white;
+    background-color: #111111;
+}
+
+.activenode
+{
+    border: 1px solid #26b3f7;
+}
+
+a
+{
+    color: #26b3f7;
+    text-decoration: none;
+}
+
+a:hover
+{
+    text-decoration: underline;
+}
+
+img
+{
+    border: 0;
+}
+
+h3
+{
+    margin-top: 0px;
+}
+
+input
+{
+    color: white;
+    background-color: black;
+    border-color: #222222;
+}
+
+div.indent
+{
+    padding-left: 20px;
+}
+
+.highlight
+{
+    background-color: #222222;
+}
+
+.success
+{
+    color: #ffffff;
+}
+
+.failure
+{
+    color: #CC0000;
+}
+
+.warning
+{
+    color: #FF0000;
+}
+
+.idle
+{
+    background-color: #222222;
+    width: 10em;
+}
+
+.busy
+{
+    background-color: #006600;
+    width: 10em;
+}
+
+.kill
+{
+    color:#FF0000;
+    background-color: #000000;
+    font-weight: bold;
+    /*left: 32px; position: relative;*/
+}
+
+th
+{
+    font-weight: bold;
+    text-align: left;
+}
+
+.ui-tabs .ui-tabs-hide
+{
+    display: none;
+}
+
+h1
+{
+    padding: 0px;
+}
+
+h1 span
+{
+    display: none;
+}
+
+#login-form
+{
+}
+
+#inputs label
+{
+    position: absolute;
+    text-align: right;
+    width: 138px;
+    margin-top: 10px;
+}
+
+#inputs input.field
+{
+    margin-left: 144px;
+    width: 160px;
+    padding: 5px;
+}
+
+
+#inputs select
+{
+    margin: 5px;
+	margin-left: 144px;
+    width: 160px;
+    padding: 5px;
+
+    display: inline-block;
+    background: #222;
+    color: #ddd;
+    border: 1px solid #ccc;
+    font-size: 16px;
+}
+
+input
+{
+    display: inline-block;
+    background: #222;
+    color: #ddd;
+    border: 1px solid #ccc;
+    margin: 5px;
+    font-size: 16px;
+}
+
+input:hover
+{
+    background: #333;
+}
+
+#submit
+{
+    margin-top: 1px;
+    margin-left: 144px;
+}
+
+#message
+{
+    display: block;
+    color: #FFFFFF;
+    padding-top: 10px;
+    padding-left: 144px;
+}
+
+#error
+{
+    display: block;
+    color: #CC0000;
+    padding-top: 10px;
+    padding-left: 144px;
+}
+
+#content pre
+{
+ white-space: pre-wrap;       /* css-3 */
+ white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+ white-space: -pre-wrap;      /* Opera 4-6 */
+ white-space: -o-pre-wrap;    /* Opera 7 */
+ word-wrap: break-word;       /* Internet Explorer 5.5+ */
+}

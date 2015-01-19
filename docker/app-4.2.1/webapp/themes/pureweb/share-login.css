@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2010 Calgary Scientific Inc., all rights reserved.
+ */
+
+h1 {
+    background: url("/themes/pureweb/PureWeb-Logo.png") no-repeat left top;
+    height: 79px;
+    width: 100%;
+    padding: 0px;
+}
+
+h1 span {
+    display: none;
+}
+
+#login-form {
+    padding-left:60px;
+    width: 400px;
+    height: 279px;
+}
+
+#inputs label {
+    position: absolute;
+    text-align: right;
+    width: 138px;
+    margin-top: 1px;
+}
+
+#inputs input.field {
+    margin-left: 144px;
+    width: 160px;
+}
+
+#submit {
+    width: 55px;
+    height: 22px;
+    margin-top: 1px;
+    margin-left: 144px;
+}
+
+#error {
+    display: block;
+    color: #CC0000;
+    padding-top: 10px;
+    padding-left: 144px;
+}
+
+div.footer {
+    background: url("/themes/pureweb/CSMG-Logo.png") no-repeat left top;
+    width: 200px;
+    height: 32px;
+    position: absolute;
+    bottom:10px;
+    right:10px;
+}

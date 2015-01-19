@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  NOTES:
+     useHttpOnly - set to false to allow javascript to access the session cookie
+-->
+<Context docBase="${catalina.home}/../webapp" privileged="false" useHttpOnly="false" allowLinking="true">
+</Context>

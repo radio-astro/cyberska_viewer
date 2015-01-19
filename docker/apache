@@ -1,0 +1,23 @@
+WSGIDaemonProcess vizserv threads=5
+
+<VirtualHost *:80>
+       WSGIScriptAlias / /var/vizserv/vizserv.wsgi
+       #WSGIScriptReloading on
+
+       <Directory /var/vizserv>
+               WSGIProcessGroup vizserv
+               WSGIApplicationGroup %{GLOBAL}
+
+               Order deny,allow
+               Allow from all
+               #Require all granted
+       </Directory>
+
+       ErrorLog ${APACHE_LOG_DIR}/viz_localhost_error.log
+
+       # Possible values include: debug, info, notice, warn, error, crit,
+       # alert, emerg.
+       LogLevel warn
+
+       CustomLog ${APACHE_LOG_DIR}/viz_localhost_access.log combined
+</VirtualHost>

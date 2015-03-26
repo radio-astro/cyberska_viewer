@@ -1,11 +1,11 @@
-DOCKER_REPO=gijzelaerr/cyberska_viewer
+DOCKER_REPO=radioastro/cyberska_viewer
 
 .PHONY: build clean
 
 all: build
 
 build:
-		docker build -t ${DOCKER_REPO} .
+	docker build -t ${DOCKER_REPO} .
 
 clean:
 	docker rmi ${DOCKER_REPO}

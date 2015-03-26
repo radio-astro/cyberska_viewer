@@ -23,9 +23,9 @@ to the actual FITS viewer.
 environment variables
 ---------------------
 
-**REDIRECT_URI**. where can we find the actual FITS viewer.
+**SERVER_NAME**. where can we find the actual FITS viewer.
 
-default http://127.0.0.1:8080/pureweb/
+default 127.0.0.1
 
 
 license file

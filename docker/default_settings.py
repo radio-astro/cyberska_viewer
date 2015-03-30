@@ -8,7 +8,7 @@ SQLALCHEMY_DATABASE_URI = 'sqlite:////var/vizserv/vizserv.db'
 # VisPoolMan credentials
 VISPOOLMAN_CRED = 'only used for SSL'
 
-REDIRECT_URI = os.environ.get('REDIRECT_URI', 'http://127.0.0.1:8080/pureweb/')
+REDIRECT_URI = os.environ.get('REDIRECT_URI', 'http://127.0.0.1:8080/pureweb')
 
 # Where to direct the session to?
 ACCESS_URL_BASE = "%s/app?name=FitsViewer&client=html5&key=" % REDIRECT_URI
